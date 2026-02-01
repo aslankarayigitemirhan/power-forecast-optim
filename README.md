@@ -35,9 +35,9 @@ The system predicts **interval-based energy consumption (kWh)** using a regulari
 
 4. **Target construction**
    - Energy per interval:
-     \[
-     E_k = \sum_{t \in B_k} P_t \cdot \frac{1}{60}
-     \]
+     ```
+     E_k = ∑_{t ∈ B_k} P_t · (1/60)
+     ```
 
 5. **Feature engineering**
    - Lagged energy values (lookback window)
@@ -65,3 +65,168 @@ The system predicts **interval-based energy consumption (kWh)** using a regulari
 
 ## Project Structure
 
+```
+power-forecast/
+├── data/
+│   ├── raw/            # Original dataset
+│   ├── processed/      # Cleaned & resampled data
+│   ├── models/         # Saved model checkpoints
+│   └── reports/        # Figures and plots
+│
+├── src/
+│   ├── cli.py          # Command-line interface
+│   ├── data/           # Loading, cleaning, resampling
+│   ├── features/       # Feature engineering
+│   ├── model/          # Ridge + GD implementation
+│   └── viz/            # Visualization utilities
+│
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## Quickstart
+
+### 1) Create virtual environment (recommended)
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+---
+
+### 2) Download dataset
+
+Manually download the dataset from UCI and place it under:
+
+```
+data/raw/household_power_consumption.txt
+```
+
+(Automatic download can be added as future work.)
+
+---
+
+### 3) Train the model
+
+```bash
+python -m src.cli train
+```
+
+**Default configuration**
+
+* Granularity: 60 min
+* Horizon: 1 step (1 hour ahead)
+* Lookback: 24 steps (24 hours)
+* Validation: rolling (walk-forward)
+
+Example output:
+
+```
+[data] supervised samples=34565, features=31
+[val-lastfold] MAE=0.3229 kWh | RMSE=0.4690 kWh
+[save] model -> data/models/model_latest.npz
+```
+
+---
+
+### 4) Run prediction on a date range
+
+```bash
+python -m src.cli predict \
+  --start "2007-04-16 21:00:00" \
+  --end   "2007-07-16 20:00:00"
+```
+
+Output includes:
+
+* MAE / RMSE over the selected interval
+* Timestamp-level prediction table
+
+---
+
+### 5) Visualize optimization landscape
+
+```bash
+python -m src.cli surface \
+  --param-i 0 \
+  --param-j 1 \
+  --grid 100 \
+  --span 2.0 \
+  --lr 0.05 \
+  --steps 40
+```
+
+Generates:
+
+* `loss_surface.png`
+* `loss_contours.png`
+
+These plots illustrate:
+
+* Convex loss geometry
+* Gradient directions
+* GD convergence trajectory
+
+---
+
+## Optimization Formulation
+
+**Objective (Ridge Regression):**
+
+```
+min_w [1/N ∑_{k=1}^{N} (E_k - w^T x_k)^2 + λ ||w||_2^2]
+```
+
+- Design variables: regression weights (w)
+- Soft constraint via L2 regularization
+- Convex ⇒ unique global minimum
+
+---
+
+## Why Gradient Descent?
+
+Although a closed-form solution exists:
+
+* GD scales better to large datasets
+* Enables mini-batch training
+* Supports rolling updates
+* Allows **optimization diagnostics** (loss surface, trajectories)
+
+---
+
+## Results Summary
+
+* **Rolling validation**
+
+  * MAE ≈ **0.32 kWh**
+  * RMSE ≈ **0.47 kWh**
+
+* **User-selected interval**
+
+  * MAE ≈ **0.39 kWh**
+  * RMSE ≈ **0.56 kWh**
+
+Errors are reported **per forecast interval**, making them directly interpretable for energy planning.
+
+---
+
+## Future Work
+
+* GUI with:
+
+  * User-defined granularity / horizon
+  * Train & predict buttons
+  * Forecast and residual plots
+* Multi-step forecasting
+* Probabilistic intervals
+* Online / streaming updates
+
+---
+
+## License
+
+Academic / educational use.
